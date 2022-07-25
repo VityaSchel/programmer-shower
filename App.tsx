@@ -4,8 +4,7 @@ import * as BackgroundFetch from 'expo-background-fetch'
 import * as TaskManager from 'expo-task-manager'
 import * as Notifications from 'expo-notifications'
 import reminders from './data/notifications'
-// import DateTimePicker from '@react-native-community/datetimepicker'
-import { Picker, PickerModes } from 'react-native-ui-lib'
+import { Picker, PickerModes, Switch } from 'react-native-ui-lib'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { CountdownCircleTimer } from 'react-native-countdown-circle-timer'
 import { formatDuration } from './utils'
@@ -55,7 +54,7 @@ async function unregisterBackgroundFetchAsync() {
 
 export default function BackgroundFetchScreen() {
   const [isRegistered, setIsRegistered] = React.useState(false)
-  const [status, setStatus] = React.useState(null)
+  const [status, setStatus] = React.useState<BackgroundFetch.BackgroundFetchStatus | null>(null)
   const [notificationTime, setNotificationTime] = React.useState<number>()
 
   React.useEffect(() => {
@@ -67,16 +66,6 @@ export default function BackgroundFetchScreen() {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK)
     setStatus(status)
     setIsRegistered(isRegistered)
-  }
-
-  const toggleFetchTask = async () => {
-    if (isRegistered) {
-      await unregisterBackgroundFetchAsync()
-    } else {
-      await registerBackgroundFetchAsync()
-    }
-
-    checkStatusAsync()
   }
 
   React.useEffect(() => {
@@ -98,31 +87,6 @@ export default function BackgroundFetchScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.textContainer}>
-        <Text>
-          Background fetch status:{' '}
-          <Text style={styles.boldText}>
-            {status && BackgroundFetch.BackgroundFetchStatus[status]}
-          </Text>
-        </Text>
-        <Text>
-          Background fetch task name:{' '}
-          <Text style={styles.boldText}>
-            {isRegistered ? BACKGROUND_FETCH_TASK : 'Not registered yet!'}
-          </Text>
-        </Text>
-      </View>
-      <View style={styles.textContainer}></View>
-      <Button
-        title={isRegistered ? 'Unregister BackgroundFetch task' : 'Register BackgroundFetch task'}
-        onPress={toggleFetchTask}
-      />
-      {/* <DateTimePicker 
-        mode='time'
-        value={new Date(notificationTime)}
-        onChange={(_, date) => setNotificationTime(date.getTime())}
-        display='clock'
-      /> */}
       <CountdownCircleTimer
         isPlaying
         key={Math.random()}
@@ -131,43 +95,44 @@ export default function BackgroundFetchScreen() {
         colors={['#004777', '#F7B801', '#A30000', '#A30000']}
         colorsTime={[7, 5, 2, 0]}
       >
-        {({ remainingTime }) => <Text style={styles.timer}>{formatDuration(remainingTime)}</Text>}
-      </CountdownCircleTimer>
-      {/* <ConicalGradient 
-        size={150}
-        width={10}
-        fill={100}
-        prefill={10}
-        beginColor="#ff0000"
-        endColor="#0000ff"
-        segments={20}
-        backgroundColor="rgba(255, 255, 255, 0.2)"
-        linecap="round"
-      >
-        {fill => (
-          <View>
-            <Text>
-              16 segments{'\n'}
-              {fill.toFixed(0)}%`
-            </Text>
-          </View>
+        {({ remainingTime }) => (
+          <Text style={styles.timer}>{formatDuration(remainingTime)}</Text>
         )}
-      </ConicalGradient> */}
-      <Picker
-        // value={notificationTime.map(o => values.find(z => z.value === o))}
-        value={values.find(z => z.value === notificationTime)}
-        placeholder={'Placeholder'}
-        onChange={e => setNotificationTime(e.value)}
-        useWheelPicker={true}
-        useNativePicker={false}
-        selectionLimit={3}
-        // migrateTextField
-        mode={PickerModes.SINGLE}
-      >
-        {values.map((e,i) => (
-          <Picker.Item key={i} {...e} />
-        ))}
-      </Picker>
+      </CountdownCircleTimer>
+      <View style={styles.properties}>
+        <View style={styles.flex}>
+          <Text style={{ ...styles.property, marginTop: 7 }}>Время:</Text>
+          <Picker
+            value={values.find(z => z.value === notificationTime)}
+            placeholder={'Placeholder'}
+            onChange={e => setNotificationTime(e.value)}
+            useWheelPicker={true}
+            useNativePicker={false}
+            selectionLimit={3}
+            mode={PickerModes.SINGLE}
+          // editable={isRegistered}
+          >
+            {values.map((e, i) => (
+              <Picker.Item key={i} {...e} />
+            ))}
+          </Picker>
+        </View>
+        <View style={styles.flex}>
+          <Text style={styles.property}>Присылать уведомление:</Text>
+          <Switch 
+            value={isRegistered} 
+            onValueChange={async enable => {
+              if (enable) {
+                await registerBackgroundFetchAsync()
+              } else {
+                await unregisterBackgroundFetchAsync()
+              }
+              checkStatusAsync()
+            }}
+            disabled={status !== 3}
+          />
+        </View>
+      </View>
     </View>
   )
 }
@@ -177,6 +142,21 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  properties: {
+    display: 'flex',
+    width: '100%',
+    paddingHorizontal: 40,
+    marginTop: 50
+  },
+  flex: {
+    display: 'flex',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 0
+  },
+  property: {
+    fontSize: 16
   },
 
   textContainer: {
