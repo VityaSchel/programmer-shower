@@ -7,8 +7,8 @@ import reminders from './data/notifications'
 // import DateTimePicker from '@react-native-community/datetimepicker'
 import { Picker, PickerModes } from 'react-native-ui-lib'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import ConicalGradient from 'react-native-conical-gradient-progress'
-
+import { CountdownCircleTimer } from 'react-native-countdown-circle-timer'
+import { formatDuration } from './utils'
 
 const BACKGROUND_FETCH_TASK = 'background-fetch'
 
@@ -83,6 +83,19 @@ export default function BackgroundFetchScreen() {
     getNotificationTime().then(setNotificationTime)
   }, [])
 
+
+  const nextNotificationTime = () => {
+    const currentTime = new Date()
+    const startOfCurrentDay = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate())
+    const secondsFromStartOfDay = Date.now() - startOfCurrentDay.getTime()
+    const secondsToEndOfDay = 1000 * 60 * 60 * 24 - Date.now()
+    if(secondsFromStartOfDay < notificationTime) {
+      return notificationTime - secondsFromStartOfDay
+    } else {
+      return secondsToEndOfDay + notificationTime
+    }
+  }
+
   return (
     <View style={styles.screen}>
       <View style={styles.textContainer}>
@@ -110,7 +123,17 @@ export default function BackgroundFetchScreen() {
         onChange={(_, date) => setNotificationTime(date.getTime())}
         display='clock'
       /> */}
-      <ConicalGradient 
+      <CountdownCircleTimer
+        isPlaying
+        key={Math.random()}
+        duration={60 * 60 * 24}
+        initialRemainingTime={Math.ceil(nextNotificationTime() / 1000)}
+        colors={['#004777', '#F7B801', '#A30000', '#A30000']}
+        colorsTime={[7, 5, 2, 0]}
+      >
+        {({ remainingTime }) => <Text style={styles.timer}>{formatDuration(remainingTime)}</Text>}
+      </CountdownCircleTimer>
+      {/* <ConicalGradient 
         size={150}
         width={10}
         fill={100}
@@ -129,7 +152,7 @@ export default function BackgroundFetchScreen() {
             </Text>
           </View>
         )}
-      </ConicalGradient>
+      </ConicalGradient> */}
       <Picker
         // value={notificationTime.map(o => values.find(z => z.value === o))}
         value={values.find(z => z.value === notificationTime)}
@@ -162,4 +185,9 @@ const styles = StyleSheet.create({
   boldText: {
     fontWeight: 'bold',
   },
+
+  timer: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  }
 })
