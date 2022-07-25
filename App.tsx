@@ -1,12 +1,12 @@
 import React from 'react'
-import { StyleSheet, Text, View, Button } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import * as BackgroundFetch from 'expo-background-fetch'
 import * as TaskManager from 'expo-task-manager'
 import * as Notifications from 'expo-notifications'
 import reminders from './data/notifications'
-import { Picker, PickerModes, Switch } from 'react-native-ui-lib'
+import { Picker, PickerModes, Switch, Button } from 'react-native-ui-lib'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { CountdownCircleTimer } from 'react-native-countdown-circle-timer'
+import Timer from './components/Timer'
 import { formatDuration } from './utils'
 
 const BACKGROUND_FETCH_TASK = 'background-fetch'
@@ -42,7 +42,7 @@ async function getNotificationTime() {
 
 async function registerBackgroundFetchAsync() {
   return BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-    minimumInterval: 10,
+    minimumInterval: 60 * 15,
     stopOnTerminate: false,
     startOnBoot: true,
   })
@@ -56,6 +56,7 @@ export default function BackgroundFetchScreen() {
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [status, setStatus] = React.useState<BackgroundFetch.BackgroundFetchStatus | null>(null)
   const [notificationTime, setNotificationTime] = React.useState<number>()
+  const [timeIsUp, setTimeIsUp] = React.useState(true)
 
   React.useEffect(() => {
     checkStatusAsync()
@@ -85,20 +86,40 @@ export default function BackgroundFetchScreen() {
     }
   }
 
+  const handleDone = () => {
+    setTimeIsUp(false)
+  }
+
   return (
     <View style={styles.screen}>
-      <CountdownCircleTimer
+      <Timer
         isPlaying
         key={Math.random()}
         duration={60 * 60 * 24}
         initialRemainingTime={Math.ceil(nextNotificationTime() / 1000)}
-        colors={['#004777', '#F7B801', '#A30000', '#A30000']}
-        colorsTime={[7, 5, 2, 0]}
+        colors={['#004777', '#02d475']}
+        colorsTime={[60 * 60 * 24, 0]}
+        size={220}
       >
         {({ remainingTime }) => (
-          <Text style={styles.timer}>{formatDuration(remainingTime)}</Text>
+          <Text style={styles.timer}>
+            {timeIsUp 
+              ? 'Время мыться!'
+              : formatDuration(remainingTime)
+            }
+          </Text>
         )}
-      </CountdownCircleTimer>
+      </Timer>
+      {timeIsUp && (
+        <View style={styles.doneButton}>
+          <Button
+            label='Готово!' 
+            size={Button.sizes.large} 
+            // backgroundColor={''}
+            onPress={handleDone}
+          />
+        </View>
+      )}
       <View style={styles.properties}>
         <View style={styles.flex}>
           <Text style={{ ...styles.property, marginTop: 7 }}>Время:</Text>
@@ -110,7 +131,6 @@ export default function BackgroundFetchScreen() {
             useNativePicker={false}
             selectionLimit={3}
             mode={PickerModes.SINGLE}
-          // editable={isRegistered}
           >
             {values.map((e, i) => (
               <Picker.Item key={i} {...e} />
@@ -159,8 +179,8 @@ const styles = StyleSheet.create({
     fontSize: 16
   },
 
-  textContainer: {
-    margin: 10,
+  doneButton: {
+    marginTop: 30,
   },
   boldText: {
     fontWeight: 'bold',
