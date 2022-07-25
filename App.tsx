@@ -5,8 +5,10 @@ import * as TaskManager from 'expo-task-manager'
 import * as Notifications from 'expo-notifications'
 import reminders from './data/notifications'
 // import DateTimePicker from '@react-native-community/datetimepicker'
-import Picker from 'react-native-ui-lib/picker'
+import { Picker, PickerModes } from 'react-native-ui-lib'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import ConicalGradient from 'react-native-conical-gradient-progress'
+
 
 const BACKGROUND_FETCH_TASK = 'background-fetch'
 
@@ -27,6 +29,18 @@ TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
   return BackgroundFetch.BackgroundFetchResult.NewData
 })
 
+const values = [
+  { value: 1000 * 60 * 60 * 7, label: 'Утром (7:00)' },
+  { value: 1000 * 60 * 60 * 19, label: 'Вечером (19:00)' },
+  { value: 1000 * 60 * 60 * 23, label: 'Ночью (23:00)' }
+]
+
+async function getNotificationTime() {
+  const time = await AsyncStorage.getItem('notification_time')
+  if (time === null) return values[0].value
+  else return values.find(z => z.value === Number(time)).value ?? values[0].value
+}
+
 async function registerBackgroundFetchAsync() {
   return BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
     minimumInterval: 10,
@@ -42,7 +56,7 @@ async function unregisterBackgroundFetchAsync() {
 export default function BackgroundFetchScreen() {
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [status, setStatus] = React.useState(null)
-  const [notificationTime, setNotificationTime] = React.useState<number[]>([])
+  const [notificationTime, setNotificationTime] = React.useState<number>()
 
   React.useEffect(() => {
     checkStatusAsync()
@@ -65,12 +79,8 @@ export default function BackgroundFetchScreen() {
     checkStatusAsync()
   }
 
-  React.useEffect(() => { 
-    AsyncStorage.
-    AsyncStorage.getItem('notification_time').then(time => {
-      if (!Number.isFinite(retreivedTime)) retreivedTime = 0
-      setNotificationTime(retreivedTime)
-    })
+  React.useEffect(() => {
+    getNotificationTime().then(setNotificationTime)
   }, [])
 
   return (
@@ -100,17 +110,40 @@ export default function BackgroundFetchScreen() {
         onChange={(_, date) => setNotificationTime(date.getTime())}
         display='clock'
       /> */}
+      <ConicalGradient 
+        size={150}
+        width={10}
+        fill={100}
+        prefill={10}
+        beginColor="#ff0000"
+        endColor="#0000ff"
+        segments={20}
+        backgroundColor="rgba(255, 255, 255, 0.2)"
+        linecap="round"
+      >
+        {fill => (
+          <View>
+            <Text>
+              16 segments{'\n'}
+              {fill.toFixed(0)}%`
+            </Text>
+          </View>
+        )}
+      </ConicalGradient>
       <Picker
-        value={notificationTime}
+        // value={notificationTime.map(o => values.find(z => z.value === o))}
+        value={values.find(z => z.value === notificationTime)}
         placeholder={'Placeholder'}
-        onChange={setNotificationTime}
+        onChange={e => setNotificationTime(e.value)}
         useWheelPicker={true}
         useNativePicker={false}
-        mode='MULTI'
+        selectionLimit={3}
+        // migrateTextField
+        mode={PickerModes.SINGLE}
       >
-        <Picker.Item key={1} value='123' label='Утром (7:00)' />
-        <Picker.Item key={2} value='123' label='Вечером (19:00)' />
-        <Picker.Item key={2} value='123' label='Ночью (23:00)' />
+        {values.map((e,i) => (
+          <Picker.Item key={i} {...e} />
+        ))}
       </Picker>
     </View>
   )
