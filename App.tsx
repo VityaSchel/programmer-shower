@@ -11,7 +11,7 @@ import { formatDuration } from './utils'
 import OnboardingComponent from './components/Onboarding'
 import * as Linking from 'expo-linking'
 
-const BACKGROUND_FETCH_TASK = 'background-fetch'
+const BACKGROUND_FETCH_TASK = 'programmer-shower-notification'
 
 const backgroundTask = async () => {
   if (await checkIfTimeIsUp()) {
