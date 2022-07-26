@@ -2,7 +2,7 @@
   "expo": {
     "name": "Programmer Shower",
     "slug": "programmer-shower",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -30,13 +30,13 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.vityaschel.programmershower",
-      "versionCode": 3
+      "versionCode": 4
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "androidStatusBar": {
-      "barStyle": "light-content"
+      "barStyle": "dark-content"
     }
   }
 }
