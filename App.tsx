@@ -4,7 +4,7 @@ import * as BackgroundFetch from 'expo-background-fetch'
 import * as TaskManager from 'expo-task-manager'
 import * as Notifications from 'expo-notifications'
 import reminders from './data/notifications'
-import { Picker, PickerModes, Switch, Button } from 'react-native-ui-lib'
+import { Picker, PickerModes, PickerValue, Switch, Button } from 'react-native-ui-lib'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Timer from './components/Timer'
 import { formatDuration } from './utils'
@@ -12,36 +12,41 @@ import { formatDuration } from './utils'
 const BACKGROUND_FETCH_TASK = 'background-fetch'
 
 const backgroundTask = async () => {
-  const notificationTime = await getNotificationTime()
-  const timeIsUp = await checkIfTimeIsUp(notificationTime)
-  if (timeIsUp) {
-    const isNotifiedString = await AsyncStorage.getItem('notified')
-    const isNotified = isNotifiedString === 'true'
-
-    const notificationTimeRaw = Number(await AsyncStorage.getItem('notification_time'))
-    const notificationTime = Number.isFinite(notificationTimeRaw) ? notificationTimeRaw : 0
-
-    if (!isNotified && !withinCurrentDay(notificationTime)) {
-      const randomReminder = reminders[Math.floor(Math.random() * reminders.length)]
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: randomReminder.title,
-          body: randomReminder.body
-        },
-        trigger: null
-      })
-      await AsyncStorage.setItem('notified', 'true')
-      await AsyncStorage.setItem('notification_time', String(startOfCurrentDay().getTime() + notificationTime))
-
-      return BackgroundFetch.BackgroundFetchResult.NewData
-    } else {
-      return BackgroundFetch.BackgroundFetchResult.NoData
-    }
+  if (await checkIfTimeIsUp()) {
+    await notify()
   } else {
     return BackgroundFetch.BackgroundFetchResult.NoData
   }
+  return BackgroundFetch.BackgroundFetchResult.NewData
 }
 TaskManager.defineTask(BACKGROUND_FETCH_TASK, backgroundTask)
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  })
+})
+
+const notify = async () => {
+  const notificationTime = await getGoalTime()
+
+  const randomReminder = reminders[Math.floor(Math.random() * reminders.length)]
+  console.log('notify', { content: {
+    title: randomReminder.title,
+    body: randomReminder.body
+  } })
+  Notifications.scheduleNotificationAsync({
+    content: {
+      title: randomReminder.title,
+      body: randomReminder.body
+    },
+    trigger: null
+  })
+  await AsyncStorage.setItem('notified', 'true')
+  await AsyncStorage.setItem('last_notified_time', String(startOfCurrentDay().getTime() + notificationTime))
+}
 
 const values = [
   { value: 1000 * 60 * 60 * 7, label: 'Утром (7:00)' },
@@ -49,10 +54,12 @@ const values = [
   { value: 1000 * 60 * 60 * 23, label: 'Ночью (23:00)' }
 ]
 
-async function getNotificationTime() {
-  const time = await AsyncStorage.getItem('notification_time')
-  if (time === null) return values[0].value
-  else {
+async function getGoalTime() {
+  const time = await AsyncStorage.getItem('goal_time')
+  if (time === null) {
+    await AsyncStorage.setItem('goal_time', String(values[0].value))
+    return values[0].value
+  } else {
     const notificationTime = Number(time)
     return Number.isFinite(notificationTime) ? notificationTime : values[0].value
   }
@@ -70,20 +77,37 @@ async function unregisterBackgroundFetchAsync() {
   return BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK)
 }
 
-async function checkIfTimeIsUp(notificationTime: number) {
-  // const date = await AsyncStorage.getItem('last_notification_date')
-  // if (date !== null) {
-  const skippedNotificationInPast = Date.now() > notificationTime//nextNotificationTime(notificationTime, new Date(Number(date)))
-  return skippedNotificationInPast
-  // } else {
-  //   AsyncStorage.setItem('last_notification_date', String(Date.now()))
-  //   return false
-  // }
+async function checkState() {
+  const notificationTime = await getGoalTime()
+  const timeIsUp = (Date.now() - startOfCurrentDay().getTime()) > notificationTime
+  if (timeIsUp) {
+    const isNotifiedString = await AsyncStorage.getItem('notified')
+    const isNotified = isNotifiedString === 'true'
+
+    const notificationTimeRaw = Number(await AsyncStorage.getItem('last_notified_time'))
+    const notificationTime = Number.isFinite(notificationTimeRaw) ? notificationTimeRaw : 0
+
+    if (!isNotified) {
+      if (!withinCurrentDay(notificationTime)) {
+        return 'TIME_IS_UP'
+      } else {
+        return 'NOT_CURRENT_DAY'
+      }
+    } else {
+      return 'NOTIFIED'
+    }
+  } else {
+    return 'CONTINUE'
+  }
+}
+
+async function checkIfTimeIsUp() {
+  return (await checkState()) === 'TIME_IS_UP'
 }
 
 const nextNotificationTime = (notificationTime, currentTime = new Date()) => {
   const secondsFromStartOfDay = currentTime.getTime() - startOfCurrentDay().getTime()
-  const secondsToEndOfDay = 1000 * 60 * 60 * 24 - currentTime.getTime()
+  const secondsToEndOfDay = 1000 * 60 * 60 * 24 - secondsFromStartOfDay
   if (secondsFromStartOfDay < notificationTime) {
     return notificationTime - secondsFromStartOfDay
   } else {
@@ -117,10 +141,16 @@ export default function BackgroundFetchScreen() {
   const [timeIsUp, setTimeIsUp] = React.useState(true)
 
   React.useEffect(() => {
-    checkStatusAsync()
+    checkBackgroundTaskStatusAsync()
+    checkState().then(state => {
+      if (state === 'TIME_IS_UP' || state === 'NOTIFIED')
+        setTimeIsUp(true)
+      else
+        setTimeIsUp(false)
+    })
   }, [])
 
-  const checkStatusAsync = async () => {
+  const checkBackgroundTaskStatusAsync = async () => {
     const status = await BackgroundFetch.getStatusAsync()
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK)
     setStatus(status)
@@ -128,7 +158,7 @@ export default function BackgroundFetchScreen() {
   }
 
   React.useEffect(() => {
-    getNotificationTime().then(setNotificationTime)
+    getGoalTime().then(setNotificationTime)
   }, [])
 
   const handleDone = () => {
@@ -136,16 +166,46 @@ export default function BackgroundFetchScreen() {
     setTimeIsUp(false)
   }
 
+  const handleUpdate = async () => {
+    if(await checkIfTimeIsUp()) {
+      console.log('handleUpdate called')
+      await AsyncStorage.setItem('notified', 'true')
+      await AsyncStorage.setItem('last_notified_time', String(startOfCurrentDay().getTime() + notificationTime))
+      setTimeIsUp(true)
+      const shouldSendNotification = await TaskManager.isTaskRegisteredAsync(BACKGROUND_FETCH_TASK)
+      if (shouldSendNotification) {
+        await notify()
+      }
+    }
+  }
+
+  const handleChangeGoalTime = (value: number) => {
+    AsyncStorage.setItem('goal_time', String(value))
+    setNotificationTime(value)
+    AsyncStorage.setItem('notified', 'false')
+    AsyncStorage.removeItem('last_notified_time')
+  }
+
+  // AsyncStorage.getItem('goal_time', (_, z) => console.log('goal_time', z))
+  // AsyncStorage.getItem('notified', (_, z) => console.log('notified', z))
+  // AsyncStorage.getItem('last_notified_time', (_, z) => console.log('last_notified_time', z))
+  // console.log('timeIsUp', timeIsUp)
+  // console.log('notificationTime', notificationTime)
+  // console.log('next', nextNotificationTime(notificationTime))
+
   return (
     <View style={styles.screen}>
+      <Button onPress={() => AsyncStorage.clear()} label='Remove' />
+      <Button onPress={() => handleChangeGoalTime(Date.now() - startOfCurrentDay().getTime() + 10 * 1000)} label='Set to 10 seconds from now' />
       <Timer
-        isPlaying
+        isPlaying={!timeIsUp}
         key={Math.random()}
         duration={60 * 60 * 24}
-        initialRemainingTime={Math.ceil(nextNotificationTime(nextNotificationTime) / 1000)}
+        initialRemainingTime={timeIsUp ? 0 : Math.ceil(nextNotificationTime(notificationTime) / 1000)}
         colors={['#004777', '#02d475']}
         colorsTime={[60 * 60 * 24, 0]}
         size={220}
+        onUpdate={handleUpdate}
       >
         {({ remainingTime }) => (
           <Text style={styles.timer}>
@@ -160,8 +220,7 @@ export default function BackgroundFetchScreen() {
         <View style={styles.doneButton}>
           <Button
             label='Готово!' 
-            size={Button.sizes.large} 
-            // backgroundColor={''}
+            size={Button.sizes.large}
             onPress={handleDone}
           />
         </View>
@@ -171,12 +230,13 @@ export default function BackgroundFetchScreen() {
           <Text style={{ ...styles.property, marginTop: 7 }}>Время:</Text>
           <Picker
             value={values.find(z => z.value === notificationTime)}
-            placeholder={'Placeholder'}
-            onChange={e => setNotificationTime(e.value)}
+            placeholder={'Выбрать'}
+            onChange={({ value }: { value: PickerValue }) => handleChangeGoalTime(Number(value))}
             useWheelPicker={true}
             useNativePicker={false}
             selectionLimit={3}
             mode={PickerModes.SINGLE}
+            editable={!timeIsUp}
           >
             {values.map((e, i) => (
               <Picker.Item key={i} {...e} />
@@ -193,9 +253,9 @@ export default function BackgroundFetchScreen() {
               } else {
                 await unregisterBackgroundFetchAsync()
               }
-              checkStatusAsync()
+              checkBackgroundTaskStatusAsync()
             }}
-            disabled={status !== 3}
+            disabled={status !== 3 || timeIsUp}
           />
         </View>
       </View>
