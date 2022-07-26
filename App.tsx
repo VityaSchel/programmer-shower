@@ -11,22 +11,37 @@ import { formatDuration } from './utils'
 
 const BACKGROUND_FETCH_TASK = 'background-fetch'
 
-// 1. Define the task by providing a name and the function that should be executed
-// Note: This needs to be called in the global scope (e.g outside of your React components)
-TaskManager.defineTask(BACKGROUND_FETCH_TASK, async () => {
-  const now = Date.now()
+const backgroundTask = async () => {
+  const notificationTime = await getNotificationTime()
+  const timeIsUp = await checkIfTimeIsUp(notificationTime)
+  if (timeIsUp) {
+    const isNotifiedString = await AsyncStorage.getItem('notified')
+    const isNotified = isNotifiedString === 'true'
 
-  const randomReminder = reminders[Math.floor(Math.random() * reminders.length)]
-  Notifications.scheduleNotificationAsync({ 
-    content: {
-      title: randomReminder.title,
-      body: randomReminder.body
-    },
-    trigger: null
-  })
+    const notificationTimeRaw = Number(await AsyncStorage.getItem('notification_time'))
+    const notificationTime = Number.isFinite(notificationTimeRaw) ? notificationTimeRaw : 0
 
-  return BackgroundFetch.BackgroundFetchResult.NewData
-})
+    if (!isNotified && !withinCurrentDay(notificationTime)) {
+      const randomReminder = reminders[Math.floor(Math.random() * reminders.length)]
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: randomReminder.title,
+          body: randomReminder.body
+        },
+        trigger: null
+      })
+      await AsyncStorage.setItem('notified', 'true')
+      await AsyncStorage.setItem('notification_time', String(startOfCurrentDay().getTime() + notificationTime))
+
+      return BackgroundFetch.BackgroundFetchResult.NewData
+    } else {
+      return BackgroundFetch.BackgroundFetchResult.NoData
+    }
+  } else {
+    return BackgroundFetch.BackgroundFetchResult.NoData
+  }
+}
+TaskManager.defineTask(BACKGROUND_FETCH_TASK, backgroundTask)
 
 const values = [
   { value: 1000 * 60 * 60 * 7, label: 'Утром (7:00)' },
@@ -37,12 +52,15 @@ const values = [
 async function getNotificationTime() {
   const time = await AsyncStorage.getItem('notification_time')
   if (time === null) return values[0].value
-  else return values.find(z => z.value === Number(time)).value ?? values[0].value
+  else {
+    const notificationTime = Number(time)
+    return Number.isFinite(notificationTime) ? notificationTime : values[0].value
+  }
 }
 
 async function registerBackgroundFetchAsync() {
   return BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-    minimumInterval: 60 * 15,
+    minimumInterval: 10,
     stopOnTerminate: false,
     startOnBoot: true,
   })
@@ -50,6 +68,46 @@ async function registerBackgroundFetchAsync() {
 
 async function unregisterBackgroundFetchAsync() {
   return BackgroundFetch.unregisterTaskAsync(BACKGROUND_FETCH_TASK)
+}
+
+async function checkIfTimeIsUp(notificationTime: number) {
+  // const date = await AsyncStorage.getItem('last_notification_date')
+  // if (date !== null) {
+  const skippedNotificationInPast = Date.now() > notificationTime//nextNotificationTime(notificationTime, new Date(Number(date)))
+  return skippedNotificationInPast
+  // } else {
+  //   AsyncStorage.setItem('last_notification_date', String(Date.now()))
+  //   return false
+  // }
+}
+
+const nextNotificationTime = (notificationTime, currentTime = new Date()) => {
+  const secondsFromStartOfDay = currentTime.getTime() - startOfCurrentDay().getTime()
+  const secondsToEndOfDay = 1000 * 60 * 60 * 24 - currentTime.getTime()
+  if (secondsFromStartOfDay < notificationTime) {
+    return notificationTime - secondsFromStartOfDay
+  } else {
+    return secondsToEndOfDay + notificationTime
+  }
+}
+
+const withinCurrentDay = (dateTime: number) => {
+  const date = new Date(dateTime)
+  const now = new Date()
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  )
+}
+
+const startOfCurrentDay = () => {
+  const currentTime = new Date()
+  return new Date(
+    currentTime.getFullYear(), 
+    currentTime.getMonth(), 
+    currentTime.getDate()
+  )
 }
 
 export default function BackgroundFetchScreen() {
@@ -73,20 +131,8 @@ export default function BackgroundFetchScreen() {
     getNotificationTime().then(setNotificationTime)
   }, [])
 
-
-  const nextNotificationTime = () => {
-    const currentTime = new Date()
-    const startOfCurrentDay = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate())
-    const secondsFromStartOfDay = Date.now() - startOfCurrentDay.getTime()
-    const secondsToEndOfDay = 1000 * 60 * 60 * 24 - Date.now()
-    if(secondsFromStartOfDay < notificationTime) {
-      return notificationTime - secondsFromStartOfDay
-    } else {
-      return secondsToEndOfDay + notificationTime
-    }
-  }
-
   const handleDone = () => {
+    AsyncStorage.setItem('notified', 'false')
     setTimeIsUp(false)
   }
 
@@ -96,7 +142,7 @@ export default function BackgroundFetchScreen() {
         isPlaying
         key={Math.random()}
         duration={60 * 60 * 24}
-        initialRemainingTime={Math.ceil(nextNotificationTime() / 1000)}
+        initialRemainingTime={Math.ceil(nextNotificationTime(nextNotificationTime) / 1000)}
         colors={['#004777', '#02d475']}
         colorsTime={[60 * 60 * 24, 0]}
         size={220}
