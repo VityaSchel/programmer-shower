@@ -67,7 +67,7 @@ async function getGoalTime() {
 
 async function registerBackgroundFetchAsync() {
   return BackgroundFetch.registerTaskAsync(BACKGROUND_FETCH_TASK, {
-    minimumInterval: 10,
+    minimumInterval: 60 * 15,
     stopOnTerminate: false,
     startOnBoot: true,
   })
@@ -89,7 +89,11 @@ async function checkState() {
 
     if (!isNotified) {
       if (!withinCurrentDay(notificationTime)) {
-        return 'TIME_IS_UP'
+        if (isNotifiedString === null) {
+          return 'NO_DATA'
+        } else {
+          return 'TIME_IS_UP'
+        }
       } else {
         return 'NOT_CURRENT_DAY'
       }
@@ -134,6 +138,8 @@ const startOfCurrentDay = () => {
   )
 }
 
+let ch_ = false
+
 export default function BackgroundFetchScreen() {
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [status, setStatus] = React.useState<BackgroundFetch.BackgroundFetchStatus | null>(null)
@@ -162,13 +168,14 @@ export default function BackgroundFetchScreen() {
   }, [])
 
   const handleDone = () => {
+    ch_ = false
     AsyncStorage.setItem('notified', 'false')
     setTimeIsUp(false)
   }
 
   const handleUpdate = async () => {
-    if(await checkIfTimeIsUp()) {
-      console.log('handleUpdate called')
+    if (await checkIfTimeIsUp() && !ch_) {
+      ch_ = true
       await AsyncStorage.setItem('notified', 'true')
       await AsyncStorage.setItem('last_notified_time', String(startOfCurrentDay().getTime() + notificationTime))
       setTimeIsUp(true)
@@ -186,6 +193,19 @@ export default function BackgroundFetchScreen() {
     AsyncStorage.removeItem('last_notified_time')
   }
 
+  React.useEffect(() => {
+    AsyncStorage.getItem('first_time_open').then(isFirstTime => {
+      if(isFirstTime === null) {
+        AsyncStorage.setItem('first_time_open', 'false')
+        BackgroundFetch.getStatusAsync().then(status => {
+          if(status === 3) {
+            registerBackgroundFetchAsync().then(() => setIsRegistered(true))
+          }
+        })
+      }
+    })
+  }, [])
+
   // AsyncStorage.getItem('goal_time', (_, z) => console.log('goal_time', z))
   // AsyncStorage.getItem('notified', (_, z) => console.log('notified', z))
   // AsyncStorage.getItem('last_notified_time', (_, z) => console.log('last_notified_time', z))
@@ -195,8 +215,8 @@ export default function BackgroundFetchScreen() {
 
   return (
     <View style={styles.screen}>
-      <Button onPress={() => AsyncStorage.clear()} label='Remove' />
-      <Button onPress={() => handleChangeGoalTime(Date.now() - startOfCurrentDay().getTime() + 10 * 1000)} label='Set to 10 seconds from now' />
+      {/* <Button onPress={() => AsyncStorage.clear()} label='Remove' />
+      <Button onPress={() => handleChangeGoalTime(Date.now() - startOfCurrentDay().getTime() + 10 * 1000)} label='Set to 10 seconds from now' /> */}
       <Timer
         isPlaying={!timeIsUp}
         key={Math.random()}
