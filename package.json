@@ -23,6 +23,7 @@
     "react-native-countdown-circle-timer": "^3.0.9",
     "react-native-countdown-component": "^2.7.1",
     "react-native-gesture-handler": "~2.2.1",
+    "react-native-onboarding-swiper": "^1.2.0",
     "react-native-reanimated": "~2.8.0",
     "react-native-svg": "12.3.0",
     "react-native-ui-lib": "^6.18.2",

@@ -8,6 +8,7 @@ import { Picker, PickerModes, PickerValue, Switch, Button } from 'react-native-u
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Timer from './components/Timer'
 import { formatDuration } from './utils'
+import OnboardingComponent from './components/Onboarding'
 
 const BACKGROUND_FETCH_TASK = 'background-fetch'
 
@@ -141,6 +142,7 @@ const startOfCurrentDay = () => {
 let ch_ = false
 
 export default function BackgroundFetchScreen() {
+  const [onboardingScreen, setIsOnboardingScreen] = React.useState(false)
   const [isRegistered, setIsRegistered] = React.useState(false)
   const [status, setStatus] = React.useState<BackgroundFetch.BackgroundFetchStatus | null>(null)
   const [notificationTime, setNotificationTime] = React.useState<number>()
@@ -196,6 +198,7 @@ export default function BackgroundFetchScreen() {
   React.useEffect(() => {
     AsyncStorage.getItem('first_time_open').then(isFirstTime => {
       if(isFirstTime === null) {
+        setIsOnboardingScreen(true)
         AsyncStorage.setItem('first_time_open', 'false')
         BackgroundFetch.getStatusAsync().then(status => {
           if(status === 3) {
@@ -214,72 +217,77 @@ export default function BackgroundFetchScreen() {
   // console.log('next', nextNotificationTime(notificationTime))
 
   return (
-    <View style={styles.screen}>
-      {/* <Button onPress={() => AsyncStorage.clear()} label='Remove' />
-      <Button onPress={() => handleChangeGoalTime(Date.now() - startOfCurrentDay().getTime() + 10 * 1000)} label='Set to 10 seconds from now' /> */}
-      <Timer
-        isPlaying={!timeIsUp}
-        key={Math.random()}
-        duration={60 * 60 * 24}
-        initialRemainingTime={timeIsUp ? 0 : Math.ceil(nextNotificationTime(notificationTime) / 1000)}
-        colors={['#004777', '#02d475']}
-        colorsTime={[60 * 60 * 24, 0]}
-        size={220}
-        onUpdate={handleUpdate}
-      >
-        {({ remainingTime }) => (
-          <Text style={styles.timer}>
-            {timeIsUp 
-              ? 'Время мыться!'
-              : formatDuration(remainingTime)
-            }
-          </Text>
-        )}
-      </Timer>
-      {timeIsUp && (
-        <View style={styles.doneButton}>
-          <Button
-            label='Готово!' 
-            size={Button.sizes.large}
-            onPress={handleDone}
-          />
-        </View>
-      )}
-      <View style={styles.properties}>
-        <View style={styles.flex}>
-          <Text style={{ ...styles.property, marginTop: 7 }}>Время:</Text>
-          <Picker
-            value={values.find(z => z.value === notificationTime)}
-            placeholder={'Выбрать'}
-            onChange={({ value }: { value: PickerValue }) => handleChangeGoalTime(Number(value))}
-            useWheelPicker={true}
-            useNativePicker={false}
-            selectionLimit={3}
-            mode={PickerModes.SINGLE}
-            editable={!timeIsUp}
+    onboardingScreen
+      ? <OnboardingComponent onDone={() => setIsOnboardingScreen(false)} />
+      : (
+        <View style={styles.screen}>
+          <Button onPress={() => AsyncStorage.clear()} label='Remove' />
+          <Button onPress={() => handleChangeGoalTime(Date.now() - startOfCurrentDay().getTime() + 10 * 1000)} label='Set to 10 seconds from now' />
+          <Timer
+            isPlaying={!timeIsUp}
+            key={Math.random()}
+            duration={60 * 60 * 24}
+            initialRemainingTime={timeIsUp ? 0 : Math.ceil(nextNotificationTime(notificationTime) / 1000)}
+            colors={['#004777', '#02d475']}
+            colorsTime={[60 * 60 * 24, 0]}
+            size={220}
+            onUpdate={handleUpdate}
           >
-            {values.map((e, i) => (
-              <Picker.Item key={i} {...e} />
-            ))}
-          </Picker>
+            {({ remainingTime }) => (
+              <Text style={styles.timer}>
+                {timeIsUp 
+                  ? 'Время мыться!'
+                  : formatDuration(remainingTime)
+                }
+              </Text>
+            )}
+          </Timer>
+          {timeIsUp && (
+            <View style={styles.doneButton}>
+              <Button
+                label='Готово!' 
+                size={Button.sizes.large}
+                onPress={handleDone}
+              />
+            </View>
+          )}
+          <View style={styles.properties}>
+            <View style={styles.flex}>
+              <Text style={{ ...styles.property, marginTop: 7 }}>Время:</Text>
+              <Picker
+                value={values.find(z => z.value === notificationTime)}
+                placeholder={'Выбрать'}
+                onChange={({ value }: { value: PickerValue }) => handleChangeGoalTime(Number(value))}
+                useWheelPicker={true}
+                useNativePicker={false}
+                selectionLimit={3}
+                mode={PickerModes.SINGLE}
+                editable={!timeIsUp}
+              >
+                {values.map((e, i) => (
+                  <Picker.Item key={i} {...e} />
+                ))}
+              </Picker>
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.property}>Присылать уведомление:</Text>
+              <Switch 
+                value={isRegistered} 
+                onValueChange={async enable => {
+                  if (enable) {
+                    await registerBackgroundFetchAsync()
+                  } else {
+                    await unregisterBackgroundFetchAsync()
+                  }
+                  checkBackgroundTaskStatusAsync()
+                }}
+                disabled={status !== 3 || timeIsUp}
+              />
+            </View>
+          </View>
+          <Text style={{ opacity: 0, fontSize: 0 }}>Arasfon хуесос ❤️</Text>
         </View>
-        <View style={styles.flex}>
-          <Text style={styles.property}>Присылать уведомление:</Text>
-          <Switch 
-            value={isRegistered} 
-            onValueChange={async enable => {
-              if (enable) {
-                await registerBackgroundFetchAsync()
-              } else {
-                await unregisterBackgroundFetchAsync()
-              }
-              checkBackgroundTaskStatusAsync()
-            }}
-            disabled={status !== 3 || timeIsUp}
-          />
-        </View>
-      </View>
-    </View>
+      )
   )
 }
 
