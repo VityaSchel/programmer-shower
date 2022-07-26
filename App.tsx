@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import Timer from './components/Timer'
 import { formatDuration } from './utils'
 import OnboardingComponent from './components/Onboarding'
+import * as Linking from 'expo-linking'
 
 const BACKGROUND_FETCH_TASK = 'background-fetch'
 
@@ -346,6 +347,9 @@ export default function BackgroundFetchScreen() {
             </View>
           </Dialog>
           <Text style={{ opacity: 0, fontSize: 0 }}>Arasfon хуесос ❤️</Text>
+          <TouchableWithoutFeedback onPress={() => Linking.openURL('https://hloth.dev/')}>
+            <Text style={styles.credit}>by @hloth / @vityaschel</Text>
+          </TouchableWithoutFeedback>
         </View>
       )
   )
@@ -408,5 +412,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 20
+  },
+
+  credit: {
+    position: 'absolute',
+    bottom: 30,
+    opacity: 0.5
   }
 })
