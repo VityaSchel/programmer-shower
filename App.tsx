@@ -1,10 +1,10 @@
 import React from 'react'
-import { StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View, Image, TouchableWithoutFeedback, SafeAreaView } from 'react-native'
 import * as BackgroundFetch from 'expo-background-fetch'
 import * as TaskManager from 'expo-task-manager'
 import * as Notifications from 'expo-notifications'
 import reminders from './data/notifications'
-import { Picker, PickerModes, PickerValue, Switch, Button } from 'react-native-ui-lib'
+import { Picker, PickerModes, PickerValue, Switch, Button, Dialog, PanningProvider } from 'react-native-ui-lib'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import Timer from './components/Timer'
 import { formatDuration } from './utils'
@@ -139,6 +139,23 @@ const startOfCurrentDay = () => {
   )
 }
 
+
+const getDaysInRowCounter = async () => {
+  const days = Number(await AsyncStorage.getItem('days_in_row'))
+  return Number.isFinite(days) ? days : 0
+}
+
+const incrementDaysInRowCounter = async () => {
+  const days = await getDaysInRowCounter()
+  AsyncStorage.setItem('days_in_row', String(days + 1))
+}
+
+const daysInRowF = (days) => {
+  if (days % 10 === 1 && days !== 11) return days + ' день'
+  else if ((days % 10 <= 4 && days % 10 !== 0) && (days < 10 || days > 14)) return days + ' дня'
+  else return days + ' дней'
+}
+
 let ch_ = false
 
 export default function BackgroundFetchScreen() {
@@ -147,6 +164,11 @@ export default function BackgroundFetchScreen() {
   const [status, setStatus] = React.useState<BackgroundFetch.BackgroundFetchStatus | null>(null)
   const [notificationTime, setNotificationTime] = React.useState<number>()
   const [timeIsUp, setTimeIsUp] = React.useState(true)
+  const [giftShown, setGiftShown] = React.useState(false)
+  const [daysInRow, setDaysInRow] = React.useState(0)
+
+  const [developermenu1, setdevelopermenu1] = React.useState(false)
+  const [developermenu2, setdevelopermenu2] = React.useState(false)
 
   React.useEffect(() => {
     checkBackgroundTaskStatusAsync()
@@ -173,6 +195,12 @@ export default function BackgroundFetchScreen() {
     ch_ = false
     AsyncStorage.setItem('notified', 'false')
     setTimeIsUp(false)
+    incrementDaysInRowCounter().then(() => {
+      getDaysInRowCounter().then(days => {
+        setDaysInRow(days)
+        setGiftShown(true)
+      })
+    })
   }
 
   const handleUpdate = async () => {
@@ -221,8 +249,21 @@ export default function BackgroundFetchScreen() {
       ? <OnboardingComponent onDone={() => setIsOnboardingScreen(false)} />
       : (
         <View style={styles.screen}>
-          <Button onPress={() => AsyncStorage.clear()} label='Remove' />
-          <Button onPress={() => handleChangeGoalTime(Date.now() - startOfCurrentDay().getTime() + 10 * 1000)} label='Set to 10 seconds from now' />
+          {developermenu1 && developermenu2 && (<View style={{ display: 'flex' }}>
+            <Button style={{ marginBottom: 10 }} onPress={() => AsyncStorage.clear()} label='Clear storage' />
+            <Button style={{ marginBottom: 10 }} onPress={() => handleChangeGoalTime(Date.now() - startOfCurrentDay().getTime() + 10 * 1000)} label='Set to 10 seconds from now' />
+            <Button style={{ marginBottom: 10 }} onPress={() => setGiftShown(true)} label='Show gift' />
+            <Button style={{ marginBottom: 10 }} onPress={() => { setdevelopermenu1(false); setdevelopermenu2(false) }} label='Hide menu' />
+          </View>)}
+          {developermenu1 && (
+            <View style={{ position: 'absolute', top: 100, left: 10, opacity: 0.1, transform: [{ rotate: '90deg' }] }}>
+              <TouchableWithoutFeedback 
+                onLongPress={() => setdevelopermenu2(true)}
+              >
+                <Text style={{ fontSize: 20 }}>...</Text>
+              </TouchableWithoutFeedback>
+            </View>
+          )}
           <Timer
             isPlaying={!timeIsUp}
             key={Math.random()}
@@ -234,12 +275,16 @@ export default function BackgroundFetchScreen() {
             onUpdate={handleUpdate}
           >
             {({ remainingTime }) => (
-              <Text style={styles.timer}>
-                {timeIsUp 
-                  ? 'Время мыться!'
-                  : formatDuration(remainingTime)
-                }
-              </Text>
+              <TouchableWithoutFeedback 
+                onLongPress={() => setdevelopermenu1(true)}
+              >
+                <Text style={styles.timer}>
+                  {timeIsUp 
+                    ? 'Время мыться!'
+                    : formatDuration(remainingTime)
+                  }
+                </Text>
+              </TouchableWithoutFeedback>
             )}
           </Timer>
           {timeIsUp && (
@@ -285,9 +330,43 @@ export default function BackgroundFetchScreen() {
               />
             </View>
           </View>
+          <Dialog
+            visible={giftShown}
+            onDismiss={() => setGiftShown(false)}
+            panDirection={PanningProvider.Directions.DOWN}
+            // overlayBackgroundColor='#ffffff'
+            // height={10}
+          >
+            <View style={styles.overlay}>
+              <Text>Поздравляем, так держать!</Text>
+              <Text>Вы моетесь уже <Text style={{ fontWeight: 'bold' }}>{daysInRowF(daysInRow)} подряд</Text></Text>
+              <Text>Вы получаете 1х кошка-девочка в подарок:</Text>
+              <RandomAnime />
+              <Button label='Закрыть' style={{ marginTop: 20 }} onPress={() => setGiftShown(false)} />
+            </View>
+          </Dialog>
           <Text style={{ opacity: 0, fontSize: 0 }}>Arasfon хуесос ❤️</Text>
         </View>
       )
+  )
+}
+
+function RandomAnime() {
+  const [uri, setURI] = React.useState()
+
+  React.useEffect(() => { loadRandomImage() }, [])
+
+  const loadRandomImage = async () => {
+    const result = await fetch('https://api.waifu.pics/nsfw/neko')
+    const pictureInfo = await result.json()
+    setURI(pictureInfo['url'])
+  }
+
+  return (
+    <Image 
+      source={{ uri, width: 100, height: 500 }}
+      style={{ width: '100%', resizeMode: 'contain', backgroundColor: '#eeeeee', marginTop: 10, height: 500 }}
+    />
   )
 }
 
@@ -323,5 +402,11 @@ const styles = StyleSheet.create({
   timer: {
     fontSize: 22,
     fontWeight: 'bold',
+  },
+
+  overlay: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 20
   }
 })
