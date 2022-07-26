@@ -1,0 +1,22 @@
+{
+  "cli": {
+    "version": ">= 0.55.1"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "env": {
+        "ANDROID_SDK_ROOT": "/usr/local/bin/android-sdk"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
