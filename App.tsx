@@ -231,7 +231,8 @@ export default function BackgroundFetchScreen() {
         AsyncStorage.setItem('first_time_open', 'false')
         BackgroundFetch.getStatusAsync().then(status => {
           if(status === 3) {
-            registerBackgroundFetchAsync().then(() => setIsRegistered(true))
+            registerBackgroundFetchAsync()
+            setIsRegistered(true)
           }
         })
       }
