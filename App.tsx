@@ -362,7 +362,7 @@ function RandomAnime() {
   React.useEffect(() => { loadRandomImage() }, [])
 
   const loadRandomImage = async () => {
-    const result = await fetch('https://api.waifu.pics/nsfw/neko')
+    const result = await fetch('https://api.waifu.pics/sfw/neko')
     const pictureInfo = await result.json()
     setURI(pictureInfo['url'])
   }
